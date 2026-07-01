@@ -1,10 +1,2 @@
 rev: 0
-last_run:
-  poc_id: null
-  harness_exit: null
-  stdout_tail: null
-  sanitizer_output: null
-  crash: null
-  crash_location: null
-  why_no_crash: null
-verdict: null
+runs: []

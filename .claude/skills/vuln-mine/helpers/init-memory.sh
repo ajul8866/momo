@@ -132,7 +132,7 @@ files = {
     "rev": 0, "non_triggering": [], "unreachable": [],
     "build_failures": [], "format_errors": [], "mined_areas": [],
 },
-"06-verification.yaml": {"rev": 0, "verdict": "fresh", "last_run": None},
+"06-verification.yaml": {"rev": 0, "runs": []},
 "07-next-constraint.yaml": {
     "rev": 0,
     "next_iteration_must": [
@@ -147,7 +147,7 @@ for name, obj in files.items():
         yaml.safe_dump(obj, fh, sort_keys=False, default_flow_style=False)
 PY
 
-# 6. OPTIONAL baseline run — record into 06 as last_run (NOT budget-counted).
+# 6. OPTIONAL baseline run — record into 06.runs[] (NOT budget-counted).
 if [ -f "$baseline" ]; then
   set +e
   timeout "$timeout_sec" "$binary_abs" "$baseline" \
@@ -164,7 +164,7 @@ def tail(path, n=3):
         return b"\n".join(open(path,"rb").read().splitlines()[-n:]).decode("utf-8","replace")
     except FileNotFoundError:
         return ""
-d["last_run"] = {
+entry = {
     "poc_id": "baseline",
     "harness_exit": rc,
     "stdout_tail": tail(f"{run_dir}/.runs/baseline.out"),
@@ -172,8 +172,10 @@ d["last_run"] = {
     "crash": rc >= 128,
     "crash_location": None,
     "why_no_crash": None if rc >= 128 else "baseline valid input; no crash expected",
+    "verdict": "stuck" if rc >= 128 else "fresh",
 }
-d["verdict"] = "stuck" if rc >= 128 else "fresh"
+d.setdefault("runs", []).append(entry)
+d["rev"] = int(d.get("rev", 0)) + 1
 yaml.safe_dump(d, open(p, "w"), sort_keys=False, default_flow_style=False)
 PY
 fi

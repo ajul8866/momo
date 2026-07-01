@@ -89,17 +89,21 @@ const analystPrompt = (runDir, pocId) => `You are the Analyst for vuln-mine.
 Read the candidate (Bash cat ${runDir}/04-candidate-poc.yaml) and the goal (Bash cat ${runDir}/01-goal.yaml).
 Run the PoC through the harness helper (Bash):
   bash ${HELPERS}/run-harness.sh ${runDir}/01-goal.yaml ${runDir}/pocs/${pocId}.bin 30
-Parse the sanitizer output (Bash):
-  bash ${HELPERS}/parse-sanitizer.sh ${runDir}/.runs/${pocId}.err
-Classify: crash (SIGABRT/SIGSEGV, or sanitizer ERROR line), signal, sanitizer kind+location,
-why_no_crash (REQUIRED if crash=false). Then write back. write-back.sh takes a record.json FILE
+Then classify the result DETERMINISTICALLY (do NOT free-text classify) with the helper:
+  CL=$(bash ${HELPERS}/classify-result.sh ${runDir}/01-goal.yaml <harness_EXIT_value> ${runDir}/.runs/${pocId}.err)
+classify-result.sh normalizes the exit code to a symbolic signal (134->SIGABRT, 139->SIGSEGV,
+124->TIMEOUT) and emits one line like:
+  crash=true|signal=SIGABRT|sanitizer=heap-buffer-overflow|at=file.c:42|verdict=verified_crash
+Use CL's fields directly for all memory writes below (crash/signal/sanitizer/at/verdict). If
+crash=false, give why_no_crash (REQUIRED). Then write back. write-back.sh takes a record.json FILE
 PATH (not inline JSON), so write the JSON to a temp file first, then pass the path. Use a fresh
-mktemp each call so parallel agents never clobber:
+mktemp each call so parallel agents never clobber. Append this run into 06.runs[] (a list, so
+concurrent Analysts never clobber each other's record):
   mkdir -p ${runDir}/.records
-  rf=$(mktemp ${runDir}/.records/rec.XXXXXX); printf '%s' '{"last_run":{"poc_id":"${pocId}","harness_exit":<n>,"stdout_tail":"<tail>","sanitizer_output":"<tail>","crash":<true|false>,"crash_location":"<loc|null>","why_no_crash":"<reason|null>"},"verdict":"<needs_more|converging|stuck>"}' > "$rf"; bash ${HELPERS}/write-back.sh ${runDir} verification "$rf"
+  rf=$(mktemp ${runDir}/.records/rec.XXXXXX); printf '%s' '{"runs":[{"poc_id":"${pocId}","harness_exit":<n>,"stdout_tail":"<tail>","sanitizer_output":"<tail>","crash":<true|false>,"crash_location":"<loc|null>","why_no_crash":"<reason|null>","signal":"<sig>","sanitizer":"<kind>","verdict":"<verdict-from-CL>"}]}' > "$rf"; bash ${HELPERS}/write-back.sh ${runDir} verification "$rf"
 If benign: rf=$(mktemp ${runDir}/.records/rec.XXXXXX); printf '%s' '{"non_triggering":[{"poc_id":"${pocId}","reason":"<why_no_crash>"}]}' > "$rf"; bash ${HELPERS}/write-back.sh ${runDir} negative "$rf"
-If crash confirmed: rf=$(mktemp ${runDir}/.records/rec.XXXXXX); printf '%s' '{"verified_crashes":[{"poc_id":"${pocId}","signal":"<sig>","sanitizer":"<kind>","at":"<loc>"}]}' > "$rf"; bash ${HELPERS}/write-back.sh ${runDir} candidate-poc "$rf"
-Always update the next constraint, then recompute stagnation:
+If verdict=verified_crash: rf=$(mktemp ${runDir}/.records/rec.XXXXXX); printf '%s' '{"verified_crashes":[{"poc_id":"${pocId}","signal":"<sig>","sanitizer":"<kind>","at":"<loc>"}]}' > "$rf"; bash ${HELPERS}/write-back.sh ${runDir} candidate-poc "$rf"
+Always update the next constraint, then recompute stagnation (this PERSISTS the counter to 07):
   rf=$(mktemp ${runDir}/.records/rec.XXXXXX); printf '%s' '{"next_iteration_must":["<concrete next step>"]}' > "$rf"; bash ${HELPERS}/write-back.sh ${runDir} next-constraint "$rf"
   bash ${HELPERS}/recompute-stagnation.sh ${runDir}/07-next-constraint.yaml ${runDir}/06-verification.yaml
 Return ONLY JSON matching the analyst schema.`;
@@ -127,11 +131,14 @@ const body = async (ctx) => {
     }
     if (batch.length === 0) break;
 
-    // Stagnation probe (deterministic; no Date.now/Math.random).
+    // Stagnation probe: READ the persisted counter (the Analyst already bumped/
+    // reset it via recompute-stagnation.sh after writing 06). Reading avoids a
+    // double-bump that would falsely inflate stagnation each batch.
+    // (deterministic; no Date.now/Math.random)
     let stagnation = 0;
     try {
       const out = await bash(
-        `bash ${HELPERS}/recompute-stagnation.sh ${runDir}/07-next-constraint.yaml ${runDir}/06-verification.yaml`
+        `python3 -c "import yaml,sys;d=yaml.safe_load(open(sys.argv[1]));print(d.get('stagnation_counter',0))" ${runDir}/07-next-constraint.yaml`
       );
       stagnation = parseInt(String(out).trim(), 10) || 0;
     } catch (_) { stagnation = 0; }
