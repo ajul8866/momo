@@ -30,6 +30,15 @@ PY
 
 binary="$(read_yaml_scalar "$goal_yaml" target.binary)"
 harness_cmd="$(read_yaml_scalar "$goal_yaml" target.harness_cmd)"
+sanitizer="$(read_yaml_scalar "$goal_yaml" target.sanitizer)"
+
+# ASan carry-forward: ASan exits 1 by default, not SIGABRT/134, so a
+# success_condition.acceptable_signals: [SIGABRT] match would never fire.
+# Force abort_on_error=1 for asan builds so the bug surfaces as SIGABRT/134.
+# Only set when the caller has not already exported ASAN_OPTIONS.
+if [ "$sanitizer" = "asan" ] && [ -z "${ASAN_OPTIONS:-}" ]; then
+  export ASAN_OPTIONS=abort_on_error=1
+fi
 
 # substitute {{binary}} and {{input}} (manifest is trust-boundary validated: only these placeholders)
 cmd="${harness_cmd//\{\{binary\}\}/$binary}"
