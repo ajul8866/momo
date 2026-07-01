@@ -109,4 +109,75 @@ log3="$(cat "$out3/build.log")"
 assert_contains "$log3" "nonexistentlib.h" "badlib: build.log mentions missing header"
 assert_contains "$log3" "apt install" "badlib: build.log suggests apt install"
 
+# ---------------------------------------------------------------------------
+# Fixture 4 (C1): src dir literally named "src" under parent "mylib"
+# => basename would be "src"; walk-up logic must yield "mylib" instead.
+# ---------------------------------------------------------------------------
+src4="$tmp/srcproj/mylib/src"; mkdir -p "$src4"
+cat > "$src4/parser.c" <<'C'
+int mylib_parse(const char *b, long n) { return n > 0 ? b[0] : -1; }
+C
+cat > "$src4/Makefile" <<'MK'
+CC?=cc
+CFLAGS?=-g
+libmylib.a: parser.o
+	ar rcs $@ $^
+parser.o: parser.c
+	$(CC) $(CFLAGS) -c parser.c -o parser.o
+MK
+cat > "$src4/fingerprint.json" <<'JSON'
+{"lang":"c","compiler":"cc","build_system":"make","deps":[],"missing_deps":[],"file_count":1,"loc":2}
+JSON
+out4="$tmp/out4"; mkdir -p "$out4"
+set +e
+bash "$build_target" "$src4" "$out4" "$src4/fingerprint.json" >"$out4/run.stdout" 2>"$out4/run.stderr"
+rc4=$?
+set -e
+assert "$rc4" "0" "src-named (no arg4): build-target exits 0"
+# the WHOLE POINT: artifact is mylib.a (parent), NOT the literal src.a
+assert_file "$out4/mylib.a" "src-named (no arg4): artifact named after parent (mylib.a), not src.a"
+if [ -f "$out4/src.a" ]; then echo "FAIL: src-named (no arg4): produced forbidden src.a" ; exit 1; fi
+echo "PASS: src-named (no arg4): no src.a produced"
+
+# arg 4 override: explicit name wins over both basename and walk-up
+out4b="$tmp/out4b"; mkdir -p "$out4b"
+set +e
+bash "$build_target" "$src4" "$out4b" "$src4/fingerprint.json" "customname" >"$out4b/run.stdout" 2>"$out4b/run.stderr"
+rc4b=$?
+set -e
+assert "$rc4b" "0" "src-named (arg4 override): build-target exits 0"
+assert_file "$out4b/customname.a" "src-named (arg4 override): explicit name customname.a used"
+if [ -f "$out4b/src.a" ] || [ -f "$out4b/mylib.a" ]; then
+    echo "FAIL: src-named (arg4 override): arg4 should suppress src.a/mylib.a"; exit 1
+fi
+echo "PASS: src-named (arg4 override): no src.a/mylib.a produced"
+
+# ---------------------------------------------------------------------------
+# Fixture 5 (I2): relative out_dir must not break strategy A redirect
+# ---------------------------------------------------------------------------
+src5="$tmp/relout-lib"; mkdir -p "$src5"
+cat > "$src5/parser.c" <<'C'
+int relout_parse(const char *b, long n) { return n > 0 ? b[0] : -1; }
+C
+cat > "$src5/Makefile" <<'MK'
+CC?=cc
+CFLAGS?=-g
+librelout.a: parser.o
+	ar rcs $@ $^
+parser.o: parser.c
+	$(CC) $(CFLAGS) -c parser.c -o parser.o
+MK
+cat > "$src5/fingerprint.json" <<'JSON'
+{"lang":"c","compiler":"cc","build_system":"make","deps":[],"missing_deps":[],"file_count":1,"loc":2}
+JSON
+# RELATIVE out_dir: build from inside src5's parent so "out_rel" is relative.
+out5_rel="out_rel"; rm -rf "$tmp/out_rel_root"; mkdir -p "$tmp/out_rel_root"
+set +e
+( cd "$tmp/out_rel_root" && bash "$build_target" "$src5" "$out5_rel" "$src5/fingerprint.json" ) \
+    >"$tmp/out5.stdout" 2>"$tmp/out5.stderr"
+rc5=$?
+set -e
+assert "$rc5" "0" "relative out_dir: build-target exits 0 (strategy A)"
+assert_file "$tmp/out_rel_root/$out5_rel/relout-lib.a" "relative out_dir: <name>.a produced (redirect resolved)"
+
 echo "ALL PASS"

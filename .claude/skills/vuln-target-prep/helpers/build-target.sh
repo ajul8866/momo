@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # build-target.sh — deterministic build fallback-chain A->B->C.
-# Usage: build-target.sh <src-dir> <out-dir> <fingerprint.json>
+# Usage: build-target.sh <src-dir> <out-dir> <fingerprint.json> [<name>]
 # Tries strategies in order, stops first that yields a working artifact,
 # logs each attempt to <out-dir>/build.log. Exit 0 on success, 1 on total failure
 # (structured diagnosis on stderr AND build.log: strategies tried, each failure's
 # last 5 stderr lines, missing deps, concrete apt install suggestion).
 set -uo pipefail
 
-if [ "$#" -ne 3 ]; then
-    echo "usage: $0 <src-dir> <out-dir> <fingerprint.json>" >&2
+if [ "$#" -lt 3 ] || [ "$#" -gt 4 ]; then
+    echo "usage: $0 <src-dir> <out-dir> <fingerprint.json> [<name>]" >&2
     exit 1
 fi
 
@@ -16,8 +16,21 @@ src_dir="$1"; out_dir="$2"; fp="$3"
 if [ ! -d "$src_dir" ]; then echo "ERROR: src-dir not a directory: $src_dir" >&2; exit 1; fi
 if [ ! -f "$fp" ]; then echo "ERROR: fingerprint.json not found: $fp" >&2; exit 1; fi
 mkdir -p "$out_dir" || { echo "ERROR: cannot create out-dir: $out_dir" >&2; exit 1; }
+# Absolutize out_dir once so redirects inside `( cd ... )` subshells resolve
+# relative to original cwd, not src_dir/objdir. Fixes strategies A and B when
+# callers pass a relative out_dir (SKILL.md §3 uses $OUT which may be relative).
+out_dir="$(cd "$out_dir" && pwd)"
 
-name="$(basename "$(cd "$src_dir" && pwd)")"
+# Derive name: explicit arg 4 wins; else basename of src_dir, but SKILL.md §1
+# clones into targets/<name>/src so basename is always the literal "src" — in
+# that case walk up one level to the <name> parent. Fixes out/<name>.a vs the
+# out/src.a collision that broke SKILL.md §4 linking.
+if [ "$#" -ge 4 ] && [ -n "$4" ]; then
+    name="$4"
+else
+    name="$(basename "$(cd "$src_dir" && pwd)")"
+    [ "$name" = "src" ] && name="$(basename "$(dirname "$(cd "$src_dir" && pwd)")")"
+fi
 log="$out_dir/build.log"
 : > "$log"
 

@@ -33,7 +33,7 @@ Inputs: `<github-url>`, optional `<name>`.
    ```sh
    SRC=$PREP/targets/<name>/src
    mkdir -p "$SRC"
-   git clone --depth 1 <url> "$SRC"
+   git clone --depth 1 "<url>" "$SRC"
    ```
    ponytail: `--depth 1` ships no history for commit-bisection analysis.
    Ceiling: version-specific bugs. Upgrade: add a `--ref <tag>` option to pin a commit.
@@ -75,7 +75,7 @@ Build the target into a static library and capture a build log:
 ```sh
 OUT=$PREP/targets/<name>/out
 mkdir -p "$OUT"
-bash $PREP/helpers/build-target.sh "$SRC" "$OUT" "$SRC.fingerprint.json"
+bash $PREP/helpers/build-target.sh "$SRC" "$OUT" "$SRC.fingerprint.json" "<name>"
 ```
 
 `build-target.sh` runs a fallback chain A → B → C and prints the winning strategy:
@@ -120,7 +120,7 @@ Materialize the smallest entry from `analysis.input_format.known_valid_patterns`
 `$MANIFEST_DIR/baseline.bin`, then:
 
 ```sh
-bash $PREP/helpers/verify-crash.sh "$MANIFEST_DIR/<BIN>" "$MANIFEST_DIR/baseline.bin"
+bash $PREP/helpers/verify-crash.sh "$MANIFEST_DIR/<BIN>" "$MANIFEST_DIR/baseline.bin" 10
 ```
 
 - EXIT=0 → harness accepts the baseline; continue.
@@ -130,7 +130,13 @@ bash $PREP/helpers/verify-crash.sh "$MANIFEST_DIR/<BIN>" "$MANIFEST_DIR/baseline
 
 Build a boundary-pushing input from `analysis.input_format` field constraints
 (oversize lengths, truncation at magic offsets, OOB indices) and run it through
-`verify-crash.sh`. Expect a SIGABRT (ASan) or SIGSEGV.
+`verify-crash.sh`:
+
+```bash
+bash $PREP/helpers/verify-crash.sh "$MANIFEST_DIR/<BIN>" "$MANIFEST_DIR/hostile.bin" 10
+```
+
+Expect a SIGABRT (ASan) or SIGSEGV.
 
 - If a crash is observed → note the signal; continue.
 - If NO input ever crashes → warn the user that the target may be robust, but
