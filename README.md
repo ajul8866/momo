@@ -140,6 +140,9 @@ docs/superpowers/
 └── plans/                   # TDD implementation plans
 
 runs/                        # per-invocation memory (gitignored)
+
+repo-docs/                   # living contributor guide (start at repo-docs/README.md)
+CLAUDE.md                    # points coding agents to repo-docs/ and its sync rules
 ```
 
 ## Built-in example
