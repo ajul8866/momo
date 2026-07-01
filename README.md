@@ -135,10 +135,6 @@ LLM judgment.
     └── manifests/
         └── example/         # built-in ASan target (naiveparse) for smoke tests
 
-docs/superpowers/
-├── specs/                   # design docs (brainstorming output)
-└── plans/                   # TDD implementation plans
-
 runs/                        # per-invocation memory (gitignored)
 
 repo-docs/                   # living contributor guide (start at repo-docs/README.md)
@@ -208,10 +204,3 @@ first.
 - Targets must be **C/C++**; the skill stops cleanly on other languages.
 - Compiling and running untrusted C is inherent to the tool's purpose — run it
   on targets you trust or in a sandbox. Sandbox isolation is deferred to v2.
-
-## Design & plans
-
-- `docs/superpowers/specs/2026-07-01-vuln-mine-design.md`
-- `docs/superpowers/specs/2026-07-01-vuln-target-prep-design.md`
-- `docs/superpowers/plans/2026-07-01-vuln-mine.md`
-- `docs/superpowers/plans/2026-07-01-vuln-target-prep.md`
