@@ -22,8 +22,8 @@ export const meta = {
 
 // Workflow harness injects `agent`, `args`, and the Bash/Write/Glob tools as
 // globals at runtime. They are absent under plain `node --check`, so guard.
-const args = (typeof args !== "undefined" && args) || {};
-const agent = (typeof agent !== "undefined") ? agent : null;
+const args  = (typeof globalThis.args  !== "undefined" && globalThis.args)  || {};
+const agent = (typeof globalThis.agent !== "undefined") ? globalThis.agent : null;
 
 function die(msg) {
   throw new Error("[analyze-and-harness] " + msg);
