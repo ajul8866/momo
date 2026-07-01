@@ -17,3 +17,5 @@ compile_commands.json
 # claude local settings
 .claude/settings.json
 .claude/settings.local.json
+# vuln-target-prep: ignore cloned target repo contents, keep skill source
+.claude/skills/vuln-target-prep/targets/*/
