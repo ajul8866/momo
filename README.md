@@ -171,6 +171,29 @@ The prep smoke test exercises the full cross-skill contract end-to-end on a loca
 fixture (no network): fingerprint → build → harness → verify → manifest →
 `validate-manifest.sh` exit 0.
 
+## Responsible use
+
+This software helps find memory-safety bugs in C/C++ code. It is intended for
+**defensive security research**: your own code, code you are authorized to test
+(bug bounty scope, pentest engagement, CTF), or open-source projects whose
+license and contributor guidelines permit security research.
+
+- **Only test targets you own or are explicitly authorized to test.** Pointing
+  this tool at software you have no right to test may violate the law, the
+  project's terms, or responsible-disclosure policy. The authorization decision
+  is **yours**, not this tool's.
+- **The tool clones, compiles, and runs untrusted C code with your privileges.**
+  A malicious target's build scripts (Makefile/CMake) could run arbitrary
+  commands. Run real targets in a sandbox/VM, not on a production host.
+- **You are responsible for how you use any bugs found.** Follow coordinated /
+  responsible disclosure. Do not use findings to harm systems you don't own.
+- The authors provide this tool "as is", without warranty, and are not liable
+  for misuse. By using it you accept full responsibility for compliance with all
+  applicable laws and the target's license/terms.
+
+If unsure whether you may test a target, **don't** — get written authorization
+first.
+
 ## Limitations (v1)
 
 - **Live-Workflow path is tested by fixture, not by a real network clone.** The
