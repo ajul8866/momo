@@ -36,7 +36,7 @@ Clone and open in Claude Code — the skills live under `.claude/skills/` and ar
 auto-discovered:
 
 ```bash
-git clone <this-repo> momo && cd momo
+git clone https://github.com/ajul8866/momo.git momo && cd momo
 claude   # opens Claude Code; both skills are available
 ```
 
