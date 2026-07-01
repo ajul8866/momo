@@ -58,9 +58,12 @@ Read these memory files with Bash cat:
   cat ${runDir}/07-next-constraint.yaml
 Also inspect source under the directory named in 02/01 (Bash: grep/head). Identify the parsing
 chain, suspicious functions, data flows, and any NEW input-format facts.
-Append findings via the helper (Bash) — write-back.sh handles flock + rev + append:
-  bash ${HELPERS}/write-back.sh ${runDir} 02-code-path '{"parsing_chain":[{"fn":"<fn>","file":"<file:line>","role":"<role>"}],"suspicious":[{"fn":"<fn>","file":"<file:line>","why":"<why>"}],"data_flows":["<flow>"]}'
-  bash ${HELPERS}/write-back.sh ${runDir} 03-input-format '{"format_facts":["<fact>"]}'
+Append findings via the helper (Bash) — write-back.sh handles flock + rev + append. It takes a
+record.json FILE PATH (not inline JSON), so write the JSON to a temp file first, then pass the
+path. Use a fresh mktemp each call so parallel agents never clobber:
+  mkdir -p ${runDir}/.records
+  rf=$(mktemp ${runDir}/.records/rec.XXXXXX); printf '%s' '{"parsing_chain":[{"fn":"<fn>","file":"<file:line>","role":"<role>"}],"suspicious":[{"fn":"<fn>","file":"<file:line>","why":"<why>"}],"data_flows":["<flow>"]}' > "$rf"; bash ${HELPERS}/write-back.sh ${runDir} 02-code-path "$rf"
+  rf=$(mktemp ${runDir}/.records/rec.XXXXXX); printf '%s' '{"format_facts":["<fact>"]}' > "$rf"; bash ${HELPERS}/write-back.sh ${runDir} 03-input-format "$rf"
 Return ONLY a JSON object with keys: parsing_chain, suspicious, data_flows, format_facts.`;
 
 const synthPrompt = (runDir, idx, switchVector) => `You are the Synthesizer for vuln-mine, iteration ${idx}.
@@ -76,8 +79,10 @@ ${switchVector
 Produce ONE PoC that satisfies 07.next_iteration_must and avoids 05.mined_areas. targets_branch is
 REQUIRED (concrete file:line or symbol) — a PoC without it is rejected.
 Write the PoC binary to ${runDir}/pocs/poc-${idx}.bin using Bash (python3 emitting exact bytes).
-Register it via write-back.sh:
-  bash ${HELPERS}/write-back.sh ${runDir} 04-candidate-poc '{"candidates":[{"id":"poc-${idx}","file":"${runDir}/pocs/poc-${idx}.bin","rationale":"<why this input hits targets_branch>","targets_branch":"<REQUIRED>","hypothesis_status":"unverified","derived_from":[]}]}'
+Register it via write-back.sh. It takes a record.json FILE PATH (not inline JSON), so write the
+JSON to a temp file first, then pass the path. Use a fresh mktemp so parallel agents never clobber:
+  mkdir -p ${runDir}/.records
+  rf=$(mktemp ${runDir}/.records/rec.XXXXXX); printf '%s' '{"candidates":[{"id":"poc-${idx}","file":"${runDir}/pocs/poc-${idx}.bin","rationale":"<why this input hits targets_branch>","targets_branch":"<REQUIRED>","hypothesis_status":"unverified","derived_from":[]}]}' > "$rf"; bash ${HELPERS}/write-back.sh ${runDir} 04-candidate-poc "$rf"
 Return ONLY JSON: {id,file,rationale,targets_branch,derived_from}.`;
 
 const analystPrompt = (runDir, pocId) => `You are the Analyst for vuln-mine.
@@ -87,12 +92,15 @@ Run the PoC through the harness helper (Bash):
 Parse the sanitizer output (Bash):
   bash ${HELPERS}/parse-sanitizer.sh ${runDir}/.runs/${pocId}.err
 Classify: crash (SIGABRT/SIGSEGV, or sanitizer ERROR line), signal, sanitizer kind+location,
-why_no_crash (REQUIRED if crash=false). Then write back:
-  bash ${HELPERS}/write-back.sh ${runDir} 06-verification '{"last_run":{"poc_id":"${pocId}","harness_exit":<n>,"stdout_tail":"<tail>","sanitizer_output":"<tail>","crash":<true|false>,"crash_location":"<loc|null>","why_no_crash":"<reason|null>"},"verdict":"<needs_more|converging|stuck>"}'
-If benign: bash ${HELPERS}/write-back.sh ${runDir} 05-negative '{"non_triggering":[{"poc_id":"${pocId}","reason":"<why_no_crash>"}]}'
-If crash confirmed: bash ${HELPERS}/write-back.sh ${runDir} 04-candidate-poc '{"verified_crashes":[{"poc_id":"${pocId}","signal":"<sig>","sanitizer":"<kind>","at":"<loc>"}]}'
+why_no_crash (REQUIRED if crash=false). Then write back. write-back.sh takes a record.json FILE
+PATH (not inline JSON), so write the JSON to a temp file first, then pass the path. Use a fresh
+mktemp each call so parallel agents never clobber:
+  mkdir -p ${runDir}/.records
+  rf=$(mktemp ${runDir}/.records/rec.XXXXXX); printf '%s' '{"last_run":{"poc_id":"${pocId}","harness_exit":<n>,"stdout_tail":"<tail>","sanitizer_output":"<tail>","crash":<true|false>,"crash_location":"<loc|null>","why_no_crash":"<reason|null>"},"verdict":"<needs_more|converging|stuck>"}' > "$rf"; bash ${HELPERS}/write-back.sh ${runDir} 06-verification "$rf"
+If benign: rf=$(mktemp ${runDir}/.records/rec.XXXXXX); printf '%s' '{"non_triggering":[{"poc_id":"${pocId}","reason":"<why_no_crash>"}]}' > "$rf"; bash ${HELPERS}/write-back.sh ${runDir} 05-negative "$rf"
+If crash confirmed: rf=$(mktemp ${runDir}/.records/rec.XXXXXX); printf '%s' '{"verified_crashes":[{"poc_id":"${pocId}","signal":"<sig>","sanitizer":"<kind>","at":"<loc>"}]}' > "$rf"; bash ${HELPERS}/write-back.sh ${runDir} 04-candidate-poc "$rf"
 Always update the next constraint, then recompute stagnation:
-  bash ${HELPERS}/write-back.sh ${runDir} 07-next-constraint '{"next_iteration_must":["<concrete next step>"]}'
+  rf=$(mktemp ${runDir}/.records/rec.XXXXXX); printf '%s' '{"next_iteration_must":["<concrete next step>"]}' > "$rf"; bash ${HELPERS}/write-back.sh ${runDir} 07-next-constraint "$rf"
   bash ${HELPERS}/recompute-stagnation.sh ${runDir}/07-next-constraint.yaml ${runDir}/06-verification.yaml
 Return ONLY JSON matching the analyst schema.`;
 

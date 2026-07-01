@@ -118,5 +118,5 @@ must yield ≥ 1 entry in `04-candidate-poc.yaml::verified_crashes`.
    (`$RUN_DIR/pocs/poc-*.bin`) and `$RUN_DIR`.
 7. Re-run the PoC directly to prove it reproduces:
    `$SKILL/manifests/example/naiveparse "$RUN_DIR"/pocs/poc-*.bin; echo "EXIT=$?"`
-   Expect an ASan `stack-buffer-overflow` and `EXIT=134` (SIGABRT, thanks to the
-   `abort_on_error=1` baked into the harness).
+   Expect an ASan `ERROR: AddressSanitizer` line (e.g. `unknown-crash`) and `EXIT=134`
+   (SIGABRT, thanks to the `abort_on_error=1` baked into the harness).
