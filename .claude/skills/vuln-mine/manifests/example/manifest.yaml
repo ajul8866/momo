@@ -1,0 +1,16 @@
+name: example
+source_root: src
+binary: naiveparse              # resolved relative to this manifest dir
+harness_cmd: "{{binary}} {{input}}"
+sanitizer: asan
+timeout_sec: 10
+input_format:
+  spec_file: format.grammar.yaml
+success_condition:
+  kind: crash
+  must_reach: null
+  acceptable_signals: [SIGABRT, SIGSEGV]
+constraints:
+  - "input must begin with magic bytes 'NPv1'"
+budget:
+  max_iterations: 6

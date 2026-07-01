@@ -1,0 +1,14 @@
+rev: 0
+target:
+  binary: null
+  harness_cmd: null
+  sanitizer: null
+  build_ok: null
+success_condition:
+  kind: null
+  must_reach: null
+  acceptable_signals: []
+constraints: []
+budget:
+  max_iterations: null
+  stop_when: null

@@ -1,0 +1,10 @@
+name: echo-target
+binary: /bin/echo
+harness_cmd: "{{binary}} {{input}}"
+sanitizer: none
+input_format:
+  spec_file: /root/momo/.claude/skills/vuln-mine/helpers/tests/fixtures/validate/spec.yaml
+success_condition:
+  kind: crash
+budget:
+  max_iterations: 10
