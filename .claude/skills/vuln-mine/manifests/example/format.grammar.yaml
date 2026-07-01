@@ -1,0 +1,12 @@
+format: NPv1
+grammar:
+  - magic: "NPv1"               # 4 literal bytes
+  - len: u16-le                 # little-endian unsigned 16-bit length L
+  - payload: bytes[len]         # L bytes copied into a fixed 64-byte stack buffer
+field_constraints:
+  - {field: "len", type: u16-le, min: 0, max: 65535, boundary_values: [0, 1, 63, 64, 65, 128, 0xffff]}
+known_valid_patterns:
+  - "magic 'NPv1' + len=1 (01 00) + 0x41"
+known_invalid_patterns:
+  - "missing/wrong magic -> rejected at gate, never reaches parser"
+  - "len declared but fewer than len payload bytes present -> truncated, returns 3 early"
