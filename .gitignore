@@ -1,1 +1,17 @@
+# vuln-mine run state (per-run memory + harness logs)
+runs/
+
+# build artifacts
+*.o
+*.obj
+build/
+*.build/
+compile_commands.json
+
+# compiled harness binaries (sources are tracked)
+*.harness
+*.targetbin
+
+# claude local settings
 .claude/settings.json
+.claude/settings.local.json
