@@ -44,8 +44,10 @@ for k in required:
 
 # 3) binary exists and is executable
 b = raw.get("binary")
-if isinstance(b, str) and b:
-    if not os.path.exists(b):
+if b not in (None, ""):
+    if not isinstance(b, str):
+        errs.append("binary must be a string")
+    elif not os.path.exists(b):
         errs.append(f"binary does not exist: {b}")
     elif not os.access(b, os.X_OK):
         errs.append(f"binary not executable: {b}")
@@ -76,18 +78,28 @@ else:
 
 # 6) harness_cmd: reject shell metacharacters OUTSIDE {{binary}}/{{input}} placeholders
 hc = raw.get("harness_cmd")
-if isinstance(hc, str) and hc:
-    # mask the two allowed placeholders, then scan the remainder
-    masked = hc.replace("{{binary}}", "").replace("{{input}}", "")
-    bad = sorted(set(c for c in ";|&$`<>" if c in masked))
-    # also reject $(...) and backticks explicitly (backtick caught above)
-    if re.search(r"\$\(", masked):
-        bad.append("$()")
-    if bad:
-        errs.append(
-            "harness_cmd contains forbidden shell metacharacters outside "
-            f"{{{{binary}}}}/{{{{input}}}} placeholders: {bad}"
-        )
+if hc not in (None, ""):
+    if not isinstance(hc, str):
+        errs.append("harness_cmd must be a string")
+    else:
+        # newline/CR are command separators — reject any control char other than space/tab
+        ctrl = sorted({c for c in hc if c < " " and c not in "\t"})
+        if ctrl:
+            errs.append(
+                "harness_cmd must not contain newline or control characters: "
+                + " ".join(repr(c) for c in ctrl)
+            )
+        # mask the two allowed placeholders, then scan the remainder
+        masked = hc.replace("{{binary}}", "").replace("{{input}}", "")
+        bad = sorted(set(c for c in ";|&$`<>" if c in masked))
+        # also reject $(...) explicitly
+        if re.search(r"\$\(", masked):
+            bad.append("$()")
+        if bad:
+            errs.append(
+                "harness_cmd contains forbidden shell metacharacters outside "
+                f"{{{{binary}}}}/{{{{input}}}} placeholders: {bad}"
+            )
 
 if errs:
     for e in errs:
