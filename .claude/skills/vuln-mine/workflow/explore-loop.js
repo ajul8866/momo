@@ -157,4 +157,7 @@ async function body() {
   return { run_dir: runDir, iterations: iteration }
 }
 
-body()
+// CRITICAL: top-level await is REQUIRED. Without it, body() returns a promise
+// the harness never awaits, and the workflow exits before spawned agents
+// complete (agentCount=N, agents_done=0, ~25ms).
+await body()

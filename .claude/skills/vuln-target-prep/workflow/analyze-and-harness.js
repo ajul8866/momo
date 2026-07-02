@@ -167,4 +167,9 @@ async function main() {
 // `typeof agent` on an undeclared identifier is safe (returns "undefined", no
 // ReferenceError/TDZ) because we never redeclare `agent` here. A plain dynamic
 // import skips main() so the module loads without throwing.
-if (typeof agent === "function") main();
+//
+// CRITICAL: top-level await is REQUIRED. Without it, main() returns a promise
+// the harness never awaits, the script body finishes evaluating, and the
+// workflow exits before the spawned agent completes (agentCount=1,
+// agents_done=0, ~25ms).
+if (typeof agent === "function") await main();
