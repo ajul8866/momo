@@ -27,9 +27,23 @@ function die(msg) {
   throw new Error("[analyze-and-harness] " + msg);
 }
 
+// The Workflow runtime injects `args` as a **JSON STRING** (not an object),
+// and `agent` as a function, both as bare in-scope globals. Parse args once.
+// `typeof args` on an undeclared identifier is safe (no TDZ) because we do not
+// redeclare `args` here.
+function loadArgs() {
+  if (typeof args === "undefined") return {};        // outside the runtime
+  if (args && typeof args === "object") return args; // already an object
+  if (typeof args === "string") {                    // the runtime sends a JSON string
+    try { return JSON.parse(args) || {}; }
+    catch (e) { die("args is not valid JSON: " + e.message); }
+  }
+  return {};
+}
+const ARGS = loadArgs();
+
 function requireArg(key) {
-  // `args` is the injected Workflow global (absent only outside the runtime).
-  const v = args[key];
+  const v = ARGS[key];
   if (v === undefined || v === null || v === "") {
     die("missing required arg: " + key);
   }
@@ -47,7 +61,7 @@ async function analyze() {
   const srcDir = requireArg("src_dir");
   const name = requireArg("name");
   const manifestDir = requireArg("manifest_dir");
-  const fingerprint = args.fingerprint || {};
+  const fingerprint = ARGS.fingerprint || {};
 
   const prompt = [
     "You are the ANALYZE stage of vuln-target-prep.",
