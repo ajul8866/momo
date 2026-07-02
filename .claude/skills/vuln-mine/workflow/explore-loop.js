@@ -144,10 +144,10 @@ const body = async (ctx) => {
     } catch (_) { stagnation = 0; }
     const switchVector = stagnation >= 3;   // K = 3 (spec §5.4)
 
-    const readerStage  = ()            => agent(readerPrompt(runDir), READER_SCHEMA);
-    const synthStage   = (idx)         => agent(synthPrompt(runDir, idx, switchVector), SYNTH_SCHEMA);
+    const readerStage  = ()            => agent(readerPrompt(runDir), { schema: READER_SCHEMA });
+    const synthStage   = (idx)         => agent(synthPrompt(runDir, idx, switchVector), { schema: SYNTH_SCHEMA });
     const analystStage = (idx, synth)  =>
-      agent(analystPrompt(runDir, ((synth && synth.id) || `poc-${idx}`)), ANALYST_SCHEMA);
+      agent(analystPrompt(runDir, ((synth && synth.id) || `poc-${idx}`)), { schema: ANALYST_SCHEMA });
 
     await pipeline(batch, readerStage, synthStage, analystStage);
   }
