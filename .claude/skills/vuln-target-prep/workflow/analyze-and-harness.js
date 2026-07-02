@@ -1,3 +1,12 @@
+export const meta = {
+  name: "analyze-and-harness",
+  description: "vuln-target-prep: read cloned source, pick a parser function, infer its input grammar, then write an argv-file harness.c that calls it.",
+  phases: [
+    { title: "ANALYZE", detail: "Read source -> analysis.yaml" },
+    { title: "HARNESS", detail: "analysis.yaml -> harness.c + compile_hints" },
+  ],
+};
+
 // analyze-and-harness.js — Claude Code Workflow for vuln-target-prep.
 // Two stages: ANALYZE (read source -> analysis.yaml) then HARNESS
 // (analysis.yaml -> harness.c + compile_hints). Run context arrives via the
@@ -5,31 +14,21 @@
 //
 // Constraints honored:
 //  - plain JS (no TypeScript)
-//  - meta is a pure literal (no Date.now / Math.random / argless new Date;
-//    any variation is by stage index only)
-//  - args existence is guarded (headless node --check must not throw)
-
-export const meta = {
-  name: "analyze-and-harness",
-  description:
-    "vuln-target-prep: read cloned source, pick a parser function, infer " +
-    "its input grammar, then write an argv-file harness.c that calls it.",
-  phases: [
-    { id: "analyze", name: "ANALYZE", description: "Read source -> analysis.yaml" },
-    { id: "harness", name: "HARNESS", description: "analysis.yaml -> harness.c + compile_hints" },
-  ],
-};
-
-// Workflow harness injects `agent`, `args`, and the Bash/Write/Glob tools as
-// globals at runtime. They are absent under plain `node --check`, so guard.
-const args  = (typeof globalThis.args  !== "undefined" && globalThis.args)  || {};
-const agent = (typeof globalThis.agent !== "undefined") ? globalThis.agent : null;
+//  - meta is a pure literal and the FIRST statement in the file
+//    (no Date.now / Math.random / argless new Date; variation is by stage only)
+//  - `agent` and `args` are injected by the Workflow runtime as in-scope
+//    globals. They are NOT on globalThis — reference them BARE. We do NOT
+//    redeclare them (redeclaring caused either TDZ or a silent null that
+//    produced 0 spawned agents). `typeof <undeclared>` is safe (no TDZ).
+//    node --check is syntax-only and never runs this; a plain dynamic import
+//    is guarded by the `typeof agent === "function"` gate before main().
 
 function die(msg) {
   throw new Error("[analyze-and-harness] " + msg);
 }
 
 function requireArg(key) {
+  // `args` is the injected Workflow global (absent only outside the runtime).
   const v = args[key];
   if (v === undefined || v === null || v === "") {
     die("missing required arg: " + key);
@@ -49,10 +48,6 @@ async function analyze() {
   const name = requireArg("name");
   const manifestDir = requireArg("manifest_dir");
   const fingerprint = args.fingerprint || {};
-
-  if (!agent) {
-    die("ANALYZE: agent() unavailable (Workflow runtime required)");
-  }
 
   const prompt = [
     "You are the ANALYZE stage of vuln-target-prep.",
@@ -88,10 +83,9 @@ async function analyze() {
     "target_function.name: null and a comment explaining why. Do not guess.",
   ].join("\n");
 
-  await agent({
-    description: "ANALYZE: read source, pick parser function, write analysis.yaml",
-    prompt: prompt,
-  });
+  // Contract: agent(prompt: string, opts?: {label, phase, schema, ...}).
+  // First arg is the prompt STRING; opts use `label` (NOT `description`).
+  await agent(prompt, { label: "ANALYZE", phase: "ANALYZE" });
 
   return { analysis_yaml: manifestDir + "/analysis.yaml" };
 }
@@ -103,10 +97,6 @@ async function analyze() {
 async function harness(analyzeOut) {
   const manifestDir = requireArg("manifest_dir");
   const analysisYaml = analyzeOut.analysis_yaml;
-
-  if (!agent) {
-    die("HARNESS: agent() unavailable (Workflow runtime required)");
-  }
 
   const prompt = [
     "You are the HARNESS stage of vuln-target-prep.",
@@ -142,10 +132,7 @@ async function harness(analyzeOut) {
     manifestDir + "/compile_hints with {error: \"no parser function identified\"}.",
   ].join("\n");
 
-  await agent({
-    description: "HARNESS: write harness.c + compile_hints from analysis.yaml",
-    prompt: prompt,
-  });
+  await agent(prompt, { label: "HARNESS", phase: "HARNESS" });
 
   return {
     harness_c: manifestDir + "/harness.c",
@@ -154,17 +141,16 @@ async function harness(analyzeOut) {
 }
 
 // --- pipeline entry ----------------------------------------------------------
-// Workflow invokes `main()` with the args global populated. The two stages are
-// strictly sequential (HARNESS depends on ANALYZE's analysis.yaml), so no
-// internal fan-out in v1.
+// Workflow runs main() only when the runtime is present. The two stages are
+// strictly sequential (HARNESS depends on ANALYZE's analysis.yaml).
 async function main() {
   const a = await analyze();
   const h = await harness(a);
   return { phase: "analyze-and-harness", analyze: a, harness: h };
 }
 
-// Named exports for tooling; Workflow calls main().
-export { analyze, harness, main };
-
-// Default export is the entrypoint.
-export default { meta, main };
+// Run under the Workflow runtime (where `agent` is injected as a function).
+// `typeof agent` on an undeclared identifier is safe (returns "undefined", no
+// ReferenceError/TDZ) because we never redeclare `agent` here. A plain dynamic
+// import skips main() so the module loads without throwing.
+if (typeof agent === "function") main();
